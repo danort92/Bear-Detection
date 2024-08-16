@@ -367,10 +367,7 @@ Upload videos and use the provided function to process and analyze them.
 
 Examples:
 
-
-
-https://github.com/user-attachments/assets/3b2578ca-1a75-4961-85b4-e538d61f3a49
-
+![ezgif-7-c8751c7a2e](https://github.com/user-attachments/assets/ea41e5cd-641e-4a36-87c7-b3cdf565cd6e)
 
 
 ## License
