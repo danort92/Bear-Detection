@@ -369,7 +369,11 @@ Examples:
 
 ![ezgif-7-c8751c7a2e](https://github.com/user-attachments/assets/ea41e5cd-641e-4a36-87c7-b3cdf565cd6e)
 
+(SHOWS OVERALL GOOD PRECISION, NO FALSE POSITIVES)
+
 ![ezgif-7-068f08d35c (1) (1) (2)](https://github.com/user-attachments/assets/9c947f16-ff53-4aa6-b254-58b9583aade8)
+
+(SHOWS GOOD PRECISION, BUT SPACE FOR IMPROVEMENTS REGARDING RECALL: TRAINING THE MODEL WITH MORE IMAGES OF BEARS STANDING UP WOULD DEFINTELY IMPROVE THE MODEL)
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
