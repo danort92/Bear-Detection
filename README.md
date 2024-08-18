@@ -1,10 +1,29 @@
 # Bear-Detection
 
 ## Overview
-This repository contains code for detecting and classifying bears in images and videos using deep learning models. The project includes two main parts:
+This repository provides a comprehensive framework for detecting and classifying bears in both images and videos using state-of-the-art deep learning models. The project is divided into two main components:
 
-- Bear Classification Model: A TensorFlow/Keras model to identify camera trap images where bears are present
-- Bear Detection Model: A YOLOv8 model for detecting bears in trail cam videos.
+### - Bear Classification Model:
+
+A deep learning model built with TensorFlow/Keras designed to identify images captured by camera traps that contain bears. The model has been trained primarily on images of brown bears, but it can be fine-tuned easily to recognize other bear species or even other animals, making it versatile for various wildlife monitoring tasks.
+
+### - Bear Detection Model:
+
+A YOLOv8-based model tailored for detecting bears in trail camera videos. This model allows for precise bear detection, drawing bounding boxes around detected bears in video frames. Similar to the classification model, it can be retrained on different datasets, enabling detection of other animal species in video footage.
+
+### Key Features
+#### - Flexible Model Fine-Tuning: 
+Both the classification and detection models are designed to be easily adaptable. By updating the training and testing datasets, users can repurpose the models to classify or detect different animals.
+#### - Seamless Dataset Integration: 
+The detection model is compatible with external datasets labeled through platforms like Roboflow, allowing users to quickly train the model on new species.
+#### - Pre-trained Weights Support: 
+Users can start with pre-trained weights to accelerate the setup process or choose to train the models from scratch.
+#### - End-to-End Video Processing: 
+The detection model includes a pipeline for processing videos, where it automatically detects and highlights bears in each frame, making it ideal for analyzing long footage from trail cameras.
+
+### Future developments:
+- Expanding the models to classify and detect multiple species within camera trap images and videos. This functionality will be particularly beneficial for conservationists who need to track various animals simultaneously.
+- Developing models to classify and detect individual animals. This feature, currently limited by data availability, has the potential to help in wildlife monitoring by allowing for the identification and tracking of specific animals over time.
 
 ## Table of Contents
 Requirements
@@ -12,7 +31,6 @@ Dataset
 Bear Classification Model
 Bear Detection Model
 Video Processing
-Setup and Usage
 License
 
 To set up the project, you'll need to install several dependencies. You can do this using pip. Here’s a list of required packages:
@@ -66,11 +84,18 @@ val_generator = val_datagen.flow_from_directory(
 
 ```
 ## Binary Classification Model
-### Overview
-A MobileNetV2-based model is used for binary classification ("Bear" vs. "Other"). The model is trained with early stopping and class weights.
+This first part of the project involves developing a deep learning model to classify images as either containing bears or not containing bears. The model is trained using the MobileNetV2 architecture, pre-trained on ImageNet, with the addition of custom layers for binary classification. The model is designed to help identify bear presence in camera trap images, which can be useful for wildlife monitoring and conservation efforts.
 
-#### Model Training:
-##### - Model Training
+### Model Training
+
+#### - Model Architecture: 
+The model uses a pre-trained MobileNetV2 base, with additional layers including a global average pooling layer, a dense layer with ReLU activation, and a final dense layer with a sigmoid activation function for binary classification.
+Class Weights: The class weights are computed using the balanced strategy to address any class imbalance in the training data.
+#### - Training Process:
+The base layers of the MobileNetV2 model are frozen during training.
+The model is compiled using the Adam optimizer and binary cross-entropy loss, with accuracy and recall as the evaluation metrics.
+Early stopping is implemented to prevent overfitting, monitoring the validation accuracy and restoring the best weights after 2 epochs of no improvement.
+
 ```
 K.clear_session()
 
@@ -113,10 +138,17 @@ history = model.fit(
     class_weight=class_weights
 )
 ```
-##### - Model Evaluation:
-Evaluate the model with custom thresholds and visualize the results.
+### Model Evaluation
+#### - Prediction Visualization:
+The model's performance is visualized by plotting random predictions from the validation set, displaying the true labels and predicted labels for a set of images.
+A custom threshold of 0.3 is used to classify the images, allowing for more flexible decision-making depending on the desired sensitivity.
+#### - Metrics Plotting:
+The training history, including accuracy, recall, and loss for both training and validation sets, is plotted to provide insights into the model's performance over the epochs.
+#### - Confusion Matrix:
+A confusion matrix is generated based on the custom threshold, providing a clear overview of the model's performance in distinguishing between 'Bear' and 'Other' images.
+A detailed classification report is also generated to further evaluate the model's precision, recall, and F1-score.
 ```
-def evaluate_with_threshold(model, generator, threshold=0.5):
+def evaluate_with_threshold(model, generator, threshold=THRESHOLD):
     """
     Evaluate the model using a custom threshold and compute metrics.
 
@@ -130,7 +162,7 @@ def evaluate_with_threshold(model, generator, threshold=0.5):
     all_true_labels = []
 
     # Ensure generator starts from the beginning
-    generator.reset()
+    #generator.reset()
 
     # Iterate over the generator to get all images and labels
     for _ in range(len(generator)):
@@ -158,22 +190,145 @@ def evaluate_with_threshold(model, generator, threshold=0.5):
 
     return predicted_labels, all_true_labels
 
-predicted_labels, true_labels = evaluate_with_threshold(model, val_generator, threshold=0.3)
+predicted_labels, true_labels = evaluate_with_threshold(model, val_generator, threshold=THRESHOLD)
 ```
+### Prediction and Image Upload
 
-## Bear Detection Model
-### - Setup and Train YOLOv8 Model
-YOLOv8 is used for detecting bears in images and videos. The dataset is downloaded from Roboflow and configured with a dynamically generated data.yaml file.
-You are asked your Roboflow credentials to upload your own labelled dataset to train the model.
+#### - Image Upload and Prediction:
+The model allows for the upload of new images, either individually or as a zip file.
+Uploaded images are classified as 'Bear' or 'Other' based on the trained model's predictions.
+Images are then saved into timestamped folders (predicted_bears and predicted_others) within a predictions directory, ensuring organized storage of results.
 ```
-# Function to find the data.yaml file in a given directory
+def upload_and_predict(model, threshold=THRESHOLD):
+    """
+    Function to upload and predict on images using the trained model.
+    Allows the user to upload either a single image or a zip file.
+    Saves predicted Bear and Other images into separate timestamped folders.
+    
+    Args:
+        model: Trained Keras model.
+        threshold: Classification threshold.
+    """
+    # Create a predictions directory with a timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    base_dir = f"predictions/{timestamp}"
+    bear_dir = os.path.join(base_dir, "predicted_bears")
+    other_dir = os.path.join(base_dir, "predicted_others")
+    
+    # Create directories if they don't exist
+    os.makedirs(bear_dir, exist_ok=True)
+    os.makedirs(other_dir, exist_ok=True)
+
+    upload_choice = input("Do you want to upload a new image or zip file? (yes/no): ").lower()
+
+    if upload_choice in ['yes', 'y']:
+        file_choice = input("Do you want to upload a zip file? (yes/no): ").lower()
+
+        if file_choice in ['yes', 'y']:
+            print("Please upload a zip file containing your images.")
+            uploaded = files.upload()
+
+            uploaded_dir = "uploaded_images"
+            if os.path.exists(uploaded_dir):
+                shutil.rmtree(uploaded_dir)
+            os.makedirs(uploaded_dir)
+
+            for filename in uploaded.keys():
+                if filename.endswith('.zip'):
+                    with zipfile.ZipFile(filename, 'r') as zip_ref:
+                        zip_ref.extractall(uploaded_dir)
+                    print(f"Extracted files to '{uploaded_dir}' directory.")
+
+            uploaded_images = [os.path.join(uploaded_dir, f) for f in os.listdir(uploaded_dir) if f.endswith(('jpg', 'jpeg', 'png'))]
+
+            bear_count = 0
+            other_count = 0
+
+            for image_path in uploaded_images:
+                image = cv2.imread(image_path)
+                if image is None:
+                    print(f"Error loading image: {image_path}")
+                    continue
+
+                image_resized = cv2.resize(image, (224, 224))
+                image_rescaled = image_resized / 255.0
+                image_batch = np.expand_dims(image_rescaled, axis=0)
+
+                print(f"Image Shape: {image_batch.shape}")
+                print(f"Image Max Value: {np.max(image_batch)}, Min Value: {np.min(image_batch)}")
+
+                prediction = model.predict(image_batch)
+                print(f"Prediction Array: {prediction}")
+
+                label = 'Bear' if prediction < (1-threshold) else 'Other'
+                print(f"Image: {os.path.basename(image_path)}, Label: {label}")
+
+                # Save the image in the appropriate folder
+                if label == 'Bear':
+                    bear_count += 1
+                    save_path = os.path.join(bear_dir, os.path.basename(image_path))
+                else:
+                    other_count += 1
+                    save_path = os.path.join(other_dir, os.path.basename(image_path))
+                
+                cv2.imwrite(save_path, image)  # Save the image in the corresponding directory
+
+            print(f"\nSummary:\nTotal Images: {len(uploaded_images)}\nBear Images: {bear_count}\nOther Images: {other_count}")
+
+        else:
+            print("Please upload an image file.")
+            uploaded = files.upload()
+
+            for filename in uploaded.keys():
+                image_path = filename
+
+                image = cv2.imread(image_path)
+                if image is None:
+                    print(f"Error loading image: {image_path}")
+                    continue
+
+                image_resized = cv2.resize(image, (224, 224))
+                image_rescaled = image_resized / 255.0
+                image_batch = np.expand_dims(image_rescaled, axis=0)
+
+                print(f"Image Shape: {image_batch.shape}")
+                print(f"Image Max Value: {np.max(image_batch)}, Min Value: {np.min(image_batch)}")
+
+                prediction = model.predict(image_batch)
+                print(f"Prediction Array: {prediction}")
+
+                label = 'Bear' if prediction < (1-threshold) else 'Other'
+                print(f"Image: {image_path}, Label: {label}")
+
+                # Save the image in the appropriate folder
+                if label == 'Bear':
+                    save_path = os.path.join(bear_dir, os.path.basename(image_path))
+                else:
+                    save_path = os.path.join(other_dir, os.path.basename(image_path))
+                
+                cv2.imwrite(save_path, image)  # Save the image in the corresponding directory
+
+    else:
+        print("No images uploaded.")
+```
+## Bear Detection Model
+
+This second part of the project focuses on detecting bears in videos using the YOLOv8 model. The setup includes options to use pre-trained weights or to train the model from scratch using a dataset either from local files or Roboflow. The user can process videos by applying the trained model to detect bears and draw bounding boxes around detected objects.
+
+### Setup and Train YOLOv8 Model
+#### - find_yaml_file: 
+This function searches a specified directory for the data.yaml file, which is necessary for YOLO model training.
+```
 def find_yaml_file(directory, filename="data.yaml"):
     for root, dirs, files in os.walk(directory):
         if filename in files:
             return os.path.join(root, filename)
     return None
+```
+#### - find_data_folders: 
+Automatically locates the train and validation folders within a directory structure, ensuring the model has the correct paths to training data.
 
-# Function to find the train and validation folders automatically
+```
 def find_data_folders(base_dir):
     train_dir = None
     val_dir = None
@@ -185,77 +340,71 @@ def find_data_folders(base_dir):
             val_dir = dirpath
 
     return train_dir, val_dir
+```
+#### - setup_bear_detection:
 
+This function is designed to download a dataset from Roboflow and set up the necessary paths and configuration for training.
+It finds the data.yaml file and updates it with the correct paths to the training and validation datasets.
+```
 def setup_bear_detection(api_key, workspace_name, project_name, version_number):
-    # Initialize Roboflow with the provided API key
     rf = Roboflow(api_key=api_key)
-
-    # Access the project in the specified workspace
     project = rf.workspace(workspace_name).project(project_name)
-
-    # Download the specified version of the dataset
     version = project.version(version_number)
     dataset = version.download("yolov8")
 
-    # Define the base directory where the dataset was extracted
     base_dir = f"/content/Bear-Detection/Bear-detection-{version_number}/"
-
-    # Automatically find the data.yaml file in the extracted dataset folder
     yaml_file_path = find_yaml_file(base_dir)
-
-    # Automatically find the train and validation paths
     train_path, val_path = find_data_folders(base_dir)
 
     if yaml_file_path and train_path and val_path:
-        # Load the existing data.yaml file
         with open(yaml_file_path, 'r') as file:
             data = yaml.safe_load(file)
-
-        # Modify the paths to the train and validation datasets
         data['train'] = train_path
         data['val'] = val_path
 
-        # Save the modified data.yaml file
         with open(yaml_file_path, 'w') as file:
             yaml.safe_dump(data, file)
 
-        # Return the path to the data.yaml file and the version number for further use
         return yaml_file_path, version_number
 
     else:
         raise FileNotFoundError("Required files or directories not found.")
-
-# Ask the user for the Roboflow details once
-api_key = input("Enter your Roboflow API key: ")
-workspace_name = input("Enter your Roboflow workspace name: ")
-project_name = input("Enter your Roboflow project name: ")
-version_number = int(input("Enter the version number of the dataset: "))
-
-# Run the setup function and get the data.yaml path and version number
-data_yaml_path, version_number = setup_bear_detection(api_key, workspace_name, project_name, version_number)
-
-# Load YOLOv8 model
-loaded_model = YOLO("yolov8n.pt") 
 ```
-### - Model Training:
+#### - setup_bear_detection_from_local: 
+Similar to the above function, but it works with datasets stored locally rather than downloading them from Roboflow.
+YOLOv8 is used for detecting bears in images and videos. The dataset is downloaded from Roboflow and configured with a dynamically generated data.yaml file.
+You are asked your Roboflow credentials to upload your own labelled dataset to train the model.
 ```
-# Train the model using the obtained data.yaml path
-loaded_model.train(
-    data=data_yaml_path,  
-    epochs=5,
-    imgsz=416, 
-    batch=16, 
-    optimizer="AdamW", 
-    lr0=0.001, 
-    weight_decay=0.0005, 
-    augment=False, 
-    half=True 
-)
-```
-### - Processing Videos:
+def setup_bear_detection_from_local(base_dir):
+    yaml_file_path = find_yaml_file(base_dir)
+    train_path, val_path = find_data_folders(base_dir)
 
-The function process_video_with_yolo processes video files and adds bounding boxes to detected bears.
-# Function to process video with YOLO
+    if yaml_file_path and train_path and val_path:
+        with open(yaml_file_path, 'r') as file:
+            data = yaml.safe_load(file)
+        data['train'] = train_path
+        data['val'] = val_path
+
+        with open(yaml_file_path, 'w') as file:
+            yaml.safe_dump(data, file)
+
+        return yaml_file_path
+```
+### Handling Pre-Trained Weights
+Users are prompted to decide whether to use pre-trained weights. If they choose to, they can upload a weights file or a zip file containing weights.
+
+If no pre-trained weights are used, the script proceeds to set up and train a YOLOv8 model using either a local dataset or a Roboflow dataset.
+
+### Model Training
+If users choose to train the model from scratch:
+The script sets up the YOLOv8 model, configures the training parameters (e.g., optimizer, learning rate, batch size), and trains the model.
+After training, users are prompted to save the trained weights, which can then be downloaded as a zip file.
+
+### Processing Videos
+
+#### - process_video_with_yolo:
+This function takes a video file and processes each frame using the YOLOv8 model to detect objects (in this case, bears).
+Detected objects are highlighted with bounding boxes in the video frames, and the processed video is saved to an output file.
 ```
 def process_video_with_yolo(video_path, model, output_path=None):
     cap = cv2.VideoCapture(video_path)
@@ -297,7 +446,12 @@ def process_video_with_yolo(video_path, model, output_path=None):
     if output_path:
         out.release()
     cv2.destroyAllWindows()
-
+```
+ 
+#### - setup_and_process_videos:
+This function sets up the environment for processing videos, including uploading video files, processing them with YOLOv8, and saving the output videos.
+It automatically finds .mp4 files in a specified directory, processes each video using the model, and saves the results.
+```
 def setup_and_process_videos():
     # Directories
     video_files_dir = '/content/Bear-Detection/video_files'
@@ -338,42 +492,17 @@ def setup_and_process_videos():
     # Print the directory where the processed videos are saved
     print(f"\nAll processed videos are saved in: {processed_videos_dir}")
 
-# Run the setup and processing function
-setup_and_process_videos()
 ```
-## Setup and Usage
-### Setup
-#### - Clone the Repository:
 
-```
-git clone https://github.com/yourusername/Bear-Detection.git
-cd Bear-Detection
-```
-#### - Install Dependencies:
-Follow the installation instructions in the Requirements section.
-
-#### - Download Dataset:
-Follow the instructions in the Dataset section.
-
-## Usage
-### Train the Classification Model:
-Run the provided scripts to train and evaluate the classification model.
-
-### Train the Detection Model:
-Follow the instructions to set up and train the YOLOv8 model.
-
-### Process Videos:
-Upload videos and use the provided function to process and analyze them.
-
-Examples:
+Examples of processed videos:
 
 ![ezgif-7-c8751c7a2e](https://github.com/user-attachments/assets/ea41e5cd-641e-4a36-87c7-b3cdf565cd6e)
 
-(SHOWS OVERALL GOOD PRECISION, NO FALSE POSITIVES)
+(SHOWS OVERALL GOOD ACCURACY, NO FALSE POSITIVES NOR NEGATIVES)
 
 ![ezgif-7-068f08d35c (1) (1) (2)](https://github.com/user-attachments/assets/9c947f16-ff53-4aa6-b254-58b9583aade8)
 
-(SHOWS GOOD PRECISION, BUT SPACE FOR IMPROVEMENTS REGARDING RECALL: TRAINING THE MODEL WITH MORE IMAGES OF BEARS STANDING UP WOULD DEFINTELY IMPROVE THE MODEL)
+(SHOWS GOOD PRECISION, BUT SPACE FOR IMPROVEMENTS REGARDING RECALL: TRAINING THE MODEL WITH A BIGGER DATASET AND MORE IMAGES OF STANDING UP BEARS WOULD DEFINTELY IMPROVE THE MODEL)
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
